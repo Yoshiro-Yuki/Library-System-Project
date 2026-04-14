@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+  <title>Bibliotheca - Agent-Powered Library</title>
+  <meta name="description" content="Bibliotheca Agent-Powered Library Recommendation System" />
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+  {% raw %}
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    // ====================================================================
+    // ALL BOOK/GENRE DATA LOADED FROM API — no hardcoded dataset
+    // ====================================================================
+
+    const GENRE_COLORS = {
+      "Computer Programming": ["#3b82f6", "#dbeafe"],
+      "Artificial Intelligence": ["#8b5cf6", "#ede9fe"],
+      "Philosophy": ["#64748b", "#f1f5f9"],
+      "Psychology": ["#ec4899", "#fce7f3"],
+      "Self-Help": ["#f59e0b", "#fef3c7"],
+      "Business & Economics": ["#10b981", "#d1fae5"],
+      "Political Science": ["#ef4444", "#fee2e2"],
+      "World History": ["#b45309", "#fef3c7"],
+      "Science & Cosmology": ["#06b6d4", "#cffafe"],
+      "Environmental Science": ["#16a34a", "#dcfce7"],
+      "Dystopian Fiction": ["#374151", "#f3f4f6"],
+      "Magical Realism": ["#7c3aed", "#ede9fe"],
+      "Mystery & Thriller": ["#1e3a5f", "#e0f2fe"],
+      "Historical Fiction": ["#92400e", "#fef3c7"],
+      "Biographies & Memoirs": ["#0f766e", "#ccfbf1"],
+      "True Crime": ["#991b1b", "#fee2e2"],
+      "Graphic Novels & Manga": ["#d97706", "#fef9c3"],
+      "Culinary Arts": ["#be185d", "#fce7f3"],
+      "Architecture & Design": ["#1d4ed8", "#dbeafe"],
+      "Travel & Geography": ["#0369a1", "#e0f2fe"],
+    };
+
+    const API = "https://api.anthropic.com/v1/messages";
+    const MODEL = "claude-sonnet-4-20250514";
+    const MAX_GENRES = 1;
+    const SEARCH_API_URL = "https://yuki0026-librarysystem.hf.space";
+
+    // ====================================================================
+    // AUTH HELPERS (localStorage removed as per Prompt 2B)
+    // ====================================================================
+
+    // ====================================================================
+    // API HELPERS
+    // ====================================================================
+    async function agentCall(system, userContent, maxTokens = 1500) {
+      const r = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: "user", content: userContent }] }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      return d.content.find(b => b.type === "text")?.text ?? "";
+    }
+
+    const REC_SYS = `You are the Recommendation Agent for Bibliotheca.
+You receive a subset of our book catalog plus the user's genre filters (up to 3) and a natural language query.
+Task: select and rank the best 6 books from the provided dataset that best match the request.
+Rules:
+- ONLY use books from the provided dataset. Never invent titles.
+- Multi-genre filter: a book should ideally match at least one selected genre; cross-genre matches are a bonus.
+- Incorporate the natural language query for semantic relevance.
+- Add a "whyItFits" field (1 sentence) explaining relevance to the specific request.
+- Return ONLY a valid JSON array of exactly 6 objects with keys:
+  id, title, author, year, genre, tags, description, rating, whyItFits
+No markdown fences, no preamble, no trailing text. Pure JSON array only.`;
+
+    function localFilter(allBooks, genres, query) {
+      let pool = (genres.length === 0) ? allBooks : allBooks.filter(b => genres.includes(b.genre));
+      if (!query.trim()) return pool;
+      const q = query.toLowerCase();
+      const scored = pool.map(b => {
+        let score = 0;
+        if ((b.title || "").toLowerCase().includes(q)) score += 4;
+        if ((b.author || "").toLowerCase().includes(q)) score += 3;
+        if ((b.description || "").toLowerCase().includes(q)) score += 2;
+        if ((b.tags || []).some(t => t.toLowerCase().includes(q))) score += 2;
+        if ((b.genre || "").toLowerCase().includes(q)) score += 1;
+        return { ...b, _score: score };
+      });
+      const hasMatch = scored.some(b => b._score > 0);
+      return hasMatch ? scored.sort((a, b) => b._score - a._score) : pool;
+    }
+
+
+    const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root,[data-theme="dark"]{
+  --bg:#0d0f14;--bg1:#13161e;--bg2:#191d28;--bg3:#1f2333;--card:#1a1e2b;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --amber:#f0a500;--amber2:#c47d00;--amber-bg:rgba(240,165,0,0.1);--amber-glow:rgba(240,165,0,0.18);
+  --text:#e8e4d9;--text2:#9a9587;--text3:#5c5a52;
+  --green:#34d399;--green-bg:rgba(52,211,153,0.1);--red:#f87171;--red-bg:rgba(248,113,113,0.1);
+  --font-d:'Libre Baskerville',Georgia,serif;--font-s:'Plus Jakarta Sans',sans-serif;
+  --ease:cubic-bezier(.4,0,.2,1);--lw:290px;--r:10px;
+  --shadow:0 4px 24px rgba(0,0,0,0.4);--shadow-lg:0 12px 48px rgba(0,0,0,0.5);
+  --logo-bg:#2a2a3e;--logo-icon:#f59e0b;
+}
+[data-theme="light"]{
+  --bg:#f8f9fa;--bg1:#ffffff;--bg2:#f1f3f5;--bg3:#e9ecef;--card:#ffffff;
+  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.15);
+  --amber:#f59e0b;--amber2:#d97706;--amber-bg:rgba(245,158,11,0.15);--amber-glow:rgba(245,158,11,0.25);
+  --text:#111827;--text2:#4b5563;--text3:#6b7280;
+  --logo-bg:#fff7ed;--logo-icon:#d97706;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font-s);min-height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;font-size:16px}
+.app{display:grid;grid-template-columns:var(--lw) 1fr 0px;grid-template-rows:100vh;height:100vh;overflow:hidden;transition:grid-template-columns 0.3s var(--ease)}
+.app.sb-off{grid-template-columns:52px 1fr 0px}
+.app.chat-on{grid-template-columns:var(--lw) 1fr 340px}
+.app.sb-off.chat-on{grid-template-columns:52px 1fr 340px}
+
+.lsb{grid-column:1;grid-row:1;background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:20}
+.lsb-head{padding:18px 16px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo{width:32px;height:32px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,var(--amber),var(--amber2));display:flex;align-items:center;justify-content:center;font-size:15px}
+.logo-wrap .name{font-family:var(--font-d);font-size:16px;font-weight:700;color:var(--amber);white-space:nowrap}
+.logo-wrap .sub{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;white-space:nowrap}
+.lsb-body{flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--bg3) transparent}
+.lsb-body::-webkit-scrollbar{width:3px}.lsb-body::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+.agent-section{padding:18px 16px;border-bottom:1px solid var(--border)}
+.agent-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--text3);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.ai-badge{background:var(--amber-bg);border:1px solid var(--amber2);border-radius:3px;padding:1px 5px;font-size:8px;color:var(--amber);font-weight:700;letter-spacing:0.5px}
+.genre-count-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.gcb-label{font-size:14px;color:var(--text);font-weight:500}
+.gcb-pills{display:flex;gap:4px}
+.gcb-pip{width:18px;height:6px;border-radius:3px;background:var(--bg3);transition:background 0.2s}
+.gcb-pip.filled{background:var(--amber)}
+.genre-scroll{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:var(--bg3) transparent}
+.genre-scroll::-webkit-scrollbar{width:3px}.genre-scroll::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+.g-btn{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;border:none;background:transparent;cursor:pointer;transition:all 0.18s var(--ease);width:100%}
+.g-btn:hover:not(.active):not(.maxed){background:var(--bg3)}
+.g-btn.active{background:var(--bg3);border:1px solid var(--border2)}
+.g-btn.maxed:not(.active){opacity:0.35;cursor:not-allowed}
+.g-btn-left{display:flex;align-items:center;gap:8px;min-width:0}
+.g-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:transform 0.15s}
+.g-btn.active .g-dot{transform:scale(1.3)}
+.g-name{font-size:15px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.g-check{font-size:11px;color:var(--amber);flex-shrink:0}
+.sel-pills{display:flex;flex-wrap:wrap;gap:5px;min-height:28px;margin-bottom:12px}
+.sel-pill{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:20px;font-size:10.5px;font-weight:600;cursor:pointer;transition:all 0.15s;border:1px solid transparent;white-space:nowrap}
+.sel-pill:hover{opacity:0.8}
+.sel-pill .pill-x{font-size:12px;line-height:1;opacity:0.7}
+.query-ta{width:100%;min-height:80px;max-height:120px;resize:vertical;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;font-family:var(--font-s);font-size:14.5px;color:var(--text);outline:none;transition:all 0.18s;line-height:1.55}
+.query-ta::placeholder{color:var(--text3)}
+.query-ta:focus{border-color:var(--amber2);box-shadow:0 0 0 3px var(--amber-bg)}
+.btn-find{width:100%;margin-top:10px;padding:12px;background:linear-gradient(135deg,var(--amber),var(--amber2));color:#0d0f14;border:none;border-radius:var(--r);font-family:var(--font-s);font-size:13px;font-weight:700;cursor:pointer;transition:all 0.18s;display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:0.2px}
+.btn-find:hover{transform:translateY(-1px);box-shadow:0 6px 20px var(--amber-glow)}
+.btn-find:disabled{background:var(--bg3);color:var(--text3);cursor:not-allowed;transform:none;box-shadow:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin 0.7s linear infinite}
+.sb-foot{flex-shrink:0;padding:10px 14px;border-top:1px solid var(--border);background:var(--bg1)}
+.btn-col{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--font-s);font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.18s}
+.btn-col:hover{border-color:var(--border2);color:var(--text)}
+.sb-off .lsb-body,.sb-off .logo-wrap,.sb-off .agent-section{display:none!important}
+.sb-off .lsb-head{justify-content:center;padding:14px 8px}
+.sb-off .sb-foot{padding:8px}
+.sb-off .btn-col-text{display:none}
+.sb-off .btn-col{width:auto;padding:8px 10px}
+
+.center{grid-column:2;grid-row:1;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:10;min-width:0}
+.ctr-top{padding:12px 60px 0 26px;border-bottom:1px solid var(--border);background:var(--bg);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.ctr-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.ctr-user{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.ctr-tabs{display:flex;align-items:center;gap:4px;padding-bottom:10px;flex-wrap:wrap}
+.ctr-heading{font-family:var(--font-d);font-size:22px;font-weight:700;color:var(--text);line-height:1}
+.ctr-heading em{color:var(--amber);font-style:italic}
+.ctr-sub{font-size:12.5px;color:var(--text3);margin-top:3px;line-height:1.4}
+.active-genres{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.ag-chip{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.tab-row{display:flex;gap:3px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.tab{padding:7px 16px;border-radius:20px;font-size:13.5px;font-weight:500;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;transition:all 0.18s;font-family:var(--font-s)}
+.tab:hover:not(.on){border-color:var(--border2);color:var(--text)}
+.tab.on{background:var(--amber);border-color:var(--amber);color:#0d0f14;font-weight:700}
+.ctr-scroll{flex:1;overflow-y:auto;padding:22px 26px 100px;scrollbar-width:thin;scrollbar-color:var(--bg3) transparent}
+.ctr-scroll::-webkit-scrollbar{width:4px}.ctr-scroll::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+.book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+
+@keyframes cardUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.bcard{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:all 0.2s var(--ease);animation:cardUp 0.32s var(--ease) both}
+.bcard:nth-child(1){animation-delay:0s}.bcard:nth-child(2){animation-delay:0.04s}.bcard:nth-child(3){animation-delay:0.08s}
+.bcard:nth-child(4){animation-delay:0.12s}.bcard:nth-child(5){animation-delay:0.16s}.bcard:nth-child(6){animation-delay:0.2s}
+.bcard:hover{border-color:var(--border2);box-shadow:var(--shadow-lg);transform:translateY(-3px)}
+.bcard-bar{height:3px;width:100%;flex-shrink:0}
+.bcard-body{padding:15px 15px 10px;flex:1;display:flex;flex-direction:column;gap:7px}
+.bcard-r1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.bcard-title{font-family:var(--font-d);font-size:16.5px;font-weight:700;color:var(--text);line-height:1.25}
+.bcard-yr{font-size:10px;color:var(--text3);flex-shrink:0;padding-top:2px}
+.bcard-author{font-size:13.5px;font-weight:600;color:var(--amber)}
+.bcard-desc{font-size:14px;color:var(--text2);line-height:1.6;flex:1}
+.bcard-why{font-size:11px;color:var(--green);font-style:italic;padding:7px 10px;background:var(--green-bg);border-left:2px solid var(--green);border-radius:0 6px 6px 0;line-height:1.5}
+a.bcard-title-link{color:inherit;text-decoration:none;transition:all 0.15s;outline:none;display:inline-block}
+a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decoration:underline}
+.bcard-tags{display:flex;flex-wrap:wrap;gap:4px}
+.bcard-tag{padding:2px 7px;border-radius:3px;font-size:11.5px;font-weight:600;background:var(--bg3);border:1px solid var(--border);color:var(--text3);text-transform:uppercase;letter-spacing:0.4px}
+.bcard-foot{padding:9px 15px 13px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border)}
+.bcard-rating{display:flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:var(--amber)}
+.stars{font-size:10px;letter-spacing:1.5px}
+.bcard-actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-save,.btn-borrow{padding:5px 12px;border-radius:5px;font-size:10.5px;font-weight:600;border:1px solid var(--border);background:transparent;cursor:pointer;transition:all 0.18s;font-family:var(--font-s);display:flex;align-items:center;gap:4px}
+.btn-save{color:var(--text3)}.btn-save:hover{border-color:var(--amber);color:var(--amber)}
+.btn-save.on{border-color:var(--amber);color:var(--amber);background:var(--amber-bg)}
+.btn-borrow{color:var(--text3)}.btn-borrow:hover{border-color:var(--green);color:var(--green)}
+.btn-borrow.on{border-color:var(--green);color:var(--green);background:var(--green-bg)}
+
+.skel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.skel-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.skel-bar{height:3px;background:var(--bg3)}.skel-body{padding:15px}
+@keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.7}}
+.skel-ln{background:var(--bg3);border-radius:3px;animation:pulse 1.4s ease infinite;margin-bottom:7px}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 40px;text-align:center;gap:14px}
+.empty-icon{font-size:56px;opacity:0.2}
+.empty-h{font-family:var(--font-d);font-size:22px;color:var(--text2);font-style:italic}
+.empty-p{font-size:12.5px;color:var(--text3);max-width:400px;line-height:1.7}
+
+.fav-list{display:flex;flex-direction:column;gap:10px}
+.frow{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px 15px;display:flex;align-items:center;gap:12px;transition:all 0.18s}
+.frow:hover{border-color:var(--border2);box-shadow:var(--shadow)}
+.frow-info{flex:1;min-width:0}
+.frow-title{font-family:var(--font-d);font-size:14.5px;font-weight:700;color:var(--text)}
+.frow-author{font-size:11px;color:var(--amber);margin-top:2px}
+.frow-tags{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.btn-rmv{padding:5px 10px;border-radius:5px;font-size:11px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;transition:all 0.18s;flex-shrink:0;font-family:var(--font-s)}
+.btn-rmv:hover{border-color:var(--red);color:var(--red)}
+
+.chat-btn{position:relative;width:46px;height:46px;border-radius:50%;background:var(--amber);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 18px var(--amber-glow);transition:all 0.15s;flex-shrink:0}
+.chat-btn:hover{transform:scale(1.1);box-shadow:0 6px 28px var(--amber-glow)}
+.chat-ping{position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;background:var(--red);border:2px solid var(--bg)}
+@keyframes pulseGlow{0%,100%{box-shadow:0 4px 20px var(--amber-glow)}50%{box-shadow:0 8px 32px var(--amber-glow);transform:scale(1.05)}}
+@keyframes floatBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes pulseRing{0%{box-shadow:0 0 0 0 var(--amber-glow)}70%{box-shadow:0 0 0 14px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.chat-btn.float-anim{animation:pulseGlow 2s infinite ease-in-out, floatBounce 3s infinite ease-in-out}
+.chat-btn.float-anim::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;border-radius:50%;animation:pulseRing 2s infinite}
+
+.chat-panel{grid-column:3;grid-row:1;width:340px;z-index:20;background:var(--bg1);border-left:1px solid var(--border);display:flex;flex-direction:column;position:relative}
+.chat-head{padding:15px 17px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:11px;flex-shrink:0}
+.chat-ava{width:36px;height:36px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--amber),var(--amber2));display:flex;align-items:center;justify-content:center;font-size:16px}
+.chat-name{font-family:var(--font-d);font-size:15px;font-weight:700;color:var(--text)}
+.chat-status{font-size:10px;color:var(--green);display:flex;align-items:center;gap:4px;font-weight:500}
+.sdot{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;animation:blink 2s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+.chat-x{margin-left:auto;width:28px;height:28px;border-radius:6px;border:none;background:transparent;color:var(--text3);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all 0.18s;flex-shrink:0}
+.chat-x:hover{background:var(--bg3);color:var(--text)}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px 13px;display:flex;flex-direction:column;gap:11px;scrollbar-width:thin;scrollbar-color:var(--bg3) transparent}
+.chat-msgs::-webkit-scrollbar{width:3px}.chat-msgs::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+.cmsg{max-width:90%}.cmsg.user{align-self:flex-end}.cmsg.assistant{align-self:flex-start}
+.cmsg-text{padding:9px 13px;border-radius:14px;font-size:14.5px;line-height:1.55}
+.cmsg.user .cmsg-text{background:var(--amber);color:#0d0f14;font-weight:500;border-radius:14px 14px 4px 14px}
+.cmsg.assistant .cmsg-text{background:var(--bg2);color:var(--text);border:1px solid var(--border2);border-radius:14px 14px 14px 4px}
+.cmsg-time{font-size:9.5px;color:var(--text3);margin-top:3px;padding:0 4px}
+.cmsg.user .cmsg-time{text-align:right}
+.typing{display:flex;gap:4px;padding:10px 13px;align-items:center}
+@keyframes bob{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+.tdot{width:5px;height:5px;border-radius:50%;background:var(--text3);animation:bob 1.1s ease infinite}
+.tdot:nth-child(2){animation-delay:0.12s}.tdot:nth-child(3){animation-delay:0.24s}
+.chat-hints{padding:0 13px 8px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.hint{padding:6px 11px;border-radius:16px;font-size:11px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;transition:all 0.18s;text-align:left;font-family:var(--font-s)}
+.hint:hover{border-color:var(--amber2);color:var(--amber);background:var(--amber-bg)}
+.chat-foot{padding:10px 13px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
+.chat-inp{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:9px 13px;font-family:var(--font-s);font-size:14.5px;color:var(--text);outline:none;transition:all 0.18s;resize:none;max-height:76px;line-height:1.45}
+.chat-inp::placeholder{color:var(--text3)}.chat-inp:focus{border-color:var(--amber2)}
+.btn-snd{width:36px;height:36px;border-radius:50%;flex-shrink:0;background:var(--amber);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:#0d0f14;transition:all 0.18s;align-self:flex-end}
+.btn-snd:hover{background:#ffb824;transform:scale(1.08)}
+.btn-snd:disabled{background:var(--bg3);color:var(--text3);cursor:not-allowed;transform:none}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border2);color:var(--text);padding:9px 18px;border-radius:8px;font-size:12.5px;z-index:999;animation:toastIn 0.28s ease;font-family:var(--font-s);box-shadow:var(--shadow)}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:var(--font-s);background-image:radial-gradient(circle at 20% 50%,var(--amber-bg),transparent 50%),radial-gradient(circle at 80% 50%,rgba(139,92,246,0.08),transparent 50%)}
+.login-card{width:100%;max-width:420px;background:var(--bg1);border:1px solid var(--border);border-radius:16px;padding:40px 36px;box-shadow:var(--shadow-lg);animation:cardUp 0.4s var(--ease) both}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px;justify-content:center}
+.login-logo .logo{width:44px;height:44px;font-size:20px;border-radius:12px}
+.login-logo-txt{font-family:var(--font-d);font-size:24px;font-weight:700;color:var(--amber)}
+.login-sub{text-align:center;color:var(--text3);font-size:12px;margin-bottom:24px;margin-top:-16px}
+.login-field{margin-bottom:16px}
+.login-field label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.login-field input,.login-field select{width:100%;padding:11px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font-s);font-size:15px;outline:none;transition:all 0.18s}
+.login-field input:focus,.login-field select:focus{border-color:var(--amber2);box-shadow:0 0 0 3px var(--amber-bg)}
+.login-err{color:var(--red);font-size:12px;margin-bottom:12px;text-align:center}
+.btn-login{width:100%;padding:13px;background:linear-gradient(135deg,var(--amber),var(--amber2));color:#0d0f14;border:none;border-radius:var(--r);font-family:var(--font-s);font-size:16px;font-weight:700;cursor:pointer;transition:all 0.18s}
+.btn-login:hover{transform:translateY(-1px);box-shadow:0 6px 20px var(--amber-glow)}
+.login-toggle{text-align:center;margin-top:16px;font-size:12px;color:var(--text3)}
+.login-toggle span{color:var(--amber);cursor:pointer;font-weight:600}
+.login-toggle span:hover{text-decoration:underline}
+
+.topbar-user{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.user-badge{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg2);font-size:11px}
+.user-email{color:var(--text);font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.role-tag{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+.role-tag.borrower{background:var(--green-bg);color:var(--green);border:1px solid rgba(52,211,153,0.3)}
+.role-tag.staff{background:rgba(139,92,246,0.12);color:#a78bfa;border:1px solid rgba(139,92,246,0.3)}
+.btn-logout{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;font-size:11px;font-family:var(--font-s);font-weight:600;transition:all 0.18s}
+.btn-logout:hover{border-color:var(--red);color:var(--red)}
+
+.borrower-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;transition:all 0.18s}
+.borrower-card:hover{border-color:var(--border2);box-shadow:var(--shadow)}
+.borrower-name{font-weight:600;font-size:14px;color:var(--text);margin-bottom:4px}
+.borrower-email{font-size:11px;color:var(--text3);margin-bottom:10px}
+.borrower-books{display:flex;flex-direction:column;gap:6px}
+.bb-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg2);border-radius:8px;font-size:12px}
+.bb-row-title{font-weight:600;color:var(--text)}
+.bb-row-author{color:var(--text3);font-size:11px}
+.btn-return{padding:4px 10px;border-radius:5px;font-size:10px;font-weight:600;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;transition:all 0.18s;font-family:var(--font-s)}
+.btn-return:hover{border-color:var(--amber);color:var(--amber)}
+
+@media(max-width:720px){
+  .app{grid-template-columns:0 1fr}
+  .lsb{position:fixed;left:0;top:0;bottom:0;width:var(--lw);transform:translateX(-100%);transition:transform 0.28s var(--ease)}
+  .lsb.mob-open{transform:translateX(0)}
+  .chat-panel{width:100%}
+  .ctr-scroll{padding:16px 14px 80px}
+  .ctr-top{padding:16px 14px}
+}
+`;
+
+    function Skeleton() {
+      return (
+        <div className="skel-grid">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="skel-card">
+              <div className="skel-bar" />
+              <div className="skel-body">
+                <div className="skel-ln" style={{ height: 17, width: "68%" }} />
+                <div className="skel-ln" style={{ height: 12, width: "42%" }} />
+                <div className="skel-ln" style={{ height: 11, width: "100%", marginTop: 10 }} />
+                <div className="skel-ln" style={{ height: 11, width: "84%" }} />
+                <div className="skel-ln" style={{ height: 11, width: "58%", marginBottom: 10 }} />
+                <div style={{ display: "flex", gap: 5 }}>
+                  {[36, 48, 38].map((w, j) => (
+                    <div key={j} className="skel-ln" style={{ height: 17, width: w, marginBottom: 0, borderRadius: 3 }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function StarRating({ rating, size = 16, uid }) {
+      const r = parseFloat(rating || 0);
+      return (
+        <div style={{ display: "flex", gap: "2px", alignItems: "center" }}>
+          {[1, 2, 3, 4, 5].map(i => {
+            let fillPercent = 0;
+            if (i <= Math.floor(r)) fillPercent = 100;
+            else if (i === Math.floor(r) + 1) fillPercent = (r % 1) * 100;
+
+            const clipId = `clip-${uid}-${i}`;
+            return (
+              <svg key={i} width={size} height={size} viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
+                <defs>
+                  <clipPath id={clipId}>
+                    <rect x="0" y="0" width={fillPercent + "%"} height="100%" />
+                  </clipPath>
+                </defs>
+                {/* grey base */}
+                <path d="M8 1l1.8 3.6 4 .6-2.9 2.8.7 4L8 10.1l-3.6 1.9.7-4L2.2 5.2l4-.6z"
+                  fill="var(--text3)" />
+                {/* amber fill clipped to width */}
+                <path d="M8 1l1.8 3.6 4 .6-2.9 2.8.7 4L8 10.1l-3.6 1.9.7-4L2.2 5.2l4-.6z"
+                  fill="var(--amber)" clipPath={`url(#${clipId})`} />
+              </svg>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function BookCard({ book, onSave, onBorrow, isSaved, isBorrowed, isPending, onRemoveOnly }) {
+      const [imgError, setImgError] = React.useState(false);
+      const [col] = GENRE_COLORS[book.genre] ?? ["#f0a500", "#0d0f14"];
+
+      const avg = parseFloat(book.average_rating || 0);
+      const filled = Math.floor(avg);
+      const hasHalf = (avg - filled) >= 0.5;
+      const empty = 5 - filled - (hasHalf ? 1 : 0);
+
+      return (
+        <div className="bcard">
+          {!imgError && book.thumbnail_url ? (
+            <img src={book.thumbnail_url} alt={book.title} onError={() => setImgError(true)} style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
+          ) : (
+            <div style={{ width: "100%", height: "140px", display: "flex", alignItems: "center", justifyContent: "center", background: col, fontSize: "12px", fontWeight: "600", color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "1px", textAlign: "center", padding: "0 10px" }}>
+              {book.genre}
+            </div>
+          )}
+          <div className="bcard-bar" style={{ background: col }} />
+          <div className="bcard-body">
+            <div className="bcard-r1">
+              <div className="bcard-title">
+                <a href={book.info_link || "#"} target="_blank" rel="noreferrer" className="bcard-title-link">{book.title}</a>
+              </div>
+              <div className="bcard-yr">{book.year < 0 ? `${Math.abs(book.year)} BC` : book.year}</div>
+            </div>
+            <div className="bcard-author">by {book.author}</div>
+
+            {(!book.average_rating || avg === 0) ? (
+              <div className="bcard-rating" style={{ fontSize: "13px", color: "var(--text3)" }}>No ratings yet</div>
+            ) : (
+              <div className="bcard-rating" style={{ fontSize: "13px" }}>
+                <StarRating rating={avg} size={16} uid={`recs-${book.id}`} />
+                <span style={{ color: "var(--text3)", marginLeft: "5px", fontSize: "11px" }}>★ {avg.toFixed(1)}</span>
+              </div>
+            )}
+
+            <div className="bcard-desc">{book.description}</div>
+            {book.whyItFits && <div className="bcard-why">{book.whyItFits}</div>}
+            <div className="bcard-tags">
+              <span className="bcard-tag" style={{ color: col, borderColor: col + "55", background: col + "18" }}>{book.genre}</span>
+              {(book.tags ?? []).slice(0, 2).map(t => (
+                <span key={t} className="bcard-tag">{t}</span>
+              ))}
+            </div>
+          </div>
+          <div className="bcard-foot">
+            <div className="bcard-actions" style={{ marginLeft: "auto" }}>
+              {onRemoveOnly ? (
+                <>
+                  <button className="btn-save" onClick={() => onRemoveOnly(book)} style={{ color: "var(--red)", borderColor: "var(--red)", marginRight: "10px" }}>
+                    Remove
+                  </button>
+                  <button className={`btn-borrow${isBorrowed ? " on" : ""}`} onClick={() => !isBorrowed && !isPending && onBorrow?.(book)} disabled={isBorrowed || isPending} style={isPending ? { borderColor: "var(--amber)", color: "var(--amber)", background: "var(--amber-bg)", opacity: 0.8, cursor: "default" } : {}}>
+                    {isBorrowed ? "\u2713 Borrowed" : isPending ? "\u23F3 Pending" : "\uD83D\uDCDA Borrow"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className={`btn-save${isSaved ? " on" : ""}`} onClick={() => onSave?.(book)}>
+                    {isSaved ? "\u2605 Saved" : "\u2606 Save"}
+                  </button>
+                  <button className={`btn-borrow${isBorrowed ? " on" : ""}`} onClick={() => !isBorrowed && !isPending && onBorrow?.(book)} disabled={isBorrowed || isPending} style={isPending ? { borderColor: "var(--amber)", color: "var(--amber)", background: "var(--amber-bg)", opacity: 0.8, cursor: "default" } : {}}>
+                    {isBorrowed ? "\u2713 Borrowed" : isPending ? "\u23F3 Pending" : "\uD83D\uDCDA Borrow"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const HINTS = [
+      "Suggest a mystery with a shocking twist",
+      "Best books to learn data science",
+      "Short philosophical reads for beginners",
+      "Gripping true crime recommendations",
+    ];
+
+    function ChatIframe({ theme }) {
+      const [ready, setReady] = useState(false);
+      useEffect(() => { setReady(false); }, [theme]);
+      return (
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          {!ready && (
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--bg1)", gap: "14px", zIndex: 2 }}>
+              <div style={{ width: "38px", height: "38px", border: "3px solid var(--border)", borderTopColor: "var(--amber)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <div style={{ fontSize: "13px", color: "var(--text2)", fontWeight: 600 }}>Waking up AI Myra…</div>
+              <div style={{ fontSize: "11px", color: "var(--text3)" }}>First load may take ~30s</div>
+            </div>
+          )}
+          <iframe
+            src={`https://yezez-librarian-chatbot.hf.space?__theme=${theme}`}
+            style={{ border: "none", width: "100%", height: "100%", display: "block" }}
+            title="AI Myra Librarian Chatbot"
+            onLoad={() => setReady(true)}
+          />
+        </div>
+      );
+    }
+
+    function LoginPage({ onLogin, theme }) {
+      const [email, setEmail] = useState("");
+      const [password, setPassword] = useState("");
+      const [error, setError] = useState("");
+      const [isCreating, setIsCreating] = useState(false);
+      const [newName, setNewName] = useState("");
+      const handleLogin = async () => {
+        setError("");
+        if (!email.trim() || !password.trim()) { setError("Please fill in all fields."); return; }
+        try {
+          const r = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+          });
+          const d = await r.json();
+          if (!r.ok) { setError(d.error || "Login failed."); return; }
+          onLogin(d);
+        } catch (e) { setError("Login failed. Please check connection."); }
+      };
+      const handleCreate = async () => {
+        setError("");
+        if (!email.trim() || !password.trim() || !newName.trim()) { setError("Please fill in all fields."); return; }
+        try {
+          const r = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: newName, email, password })
+          });
+          const d = await r.json();
+          if (!r.ok) { setError(d.error || "Registration failed."); return; }
+          onLogin(d);
+        } catch (e) { setError("Registration failed. Please check connection."); }
+      };
+      return (
+        <div className="login-wrap" data-theme={theme}>
+          <style>{CSS}</style>
+          <div className="login-card">
+            <div className="login-logo">
+              <div className="logo" style={{ width: 44, height: 44, borderRadius: 12, background: "transparent" }}>
+                <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="64" height="64" rx="14" fill="var(--logo-bg)" />
+                  <path d="M32 18 L20 28 L24 44 L32 36 L40 44 L44 28 Z" stroke="var(--logo-icon)" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="3 3" />
+                  <path d="M20 28 L32 36 L44 28" stroke="var(--logo-icon)" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="3 3" />
+                  <path d="M32 18 L32 36" stroke="var(--logo-icon)" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="3 3" />
+                  <path d="M32 24 C28 19 18 17 10 22 V48 C18 43 28 45 32 52 Z" fill="var(--logo-icon)" fillOpacity="0.15" />
+                  <path d="M32 24 C28 19 18 17 10 22 V48 C18 43 28 45 32 52" stroke="var(--logo-icon)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M32 24 C36 19 46 17 54 22 V48 C46 43 36 45 32 52 Z" fill="var(--logo-icon)" fillOpacity="0.15" />
+                  <path d="M32 24 C36 19 46 17 54 22 V48 C46 43 36 45 32 52" stroke="var(--logo-icon)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M32 24 V52" stroke="var(--logo-icon)" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="32" cy="18" r="2.5" fill="var(--logo-icon)" />
+                  <circle cx="20" cy="28" r="2" fill="var(--logo-icon)" />
+                  <circle cx="44" cy="28" r="2" fill="var(--logo-icon)" />
+                  <circle cx="24" cy="44" r="1.5" fill="var(--logo-icon)" />
+                  <circle cx="40" cy="44" r="1.5" fill="var(--logo-icon)" />
+                  <circle cx="32" cy="36" r="2" fill="var(--logo-icon)" />
+                </svg>
+              </div>
+              <span className="login-logo-txt">Bibliotheca</span>
+            </div>
+            <div className="login-sub">{isCreating ? "Create a new account" : "Log in to access the library"}</div>
+            {error && <div className="login-err">{"\u26A0"} {error}</div>}
+            {isCreating && (
+              <div className="login-field">
+                <label>Username</label>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Your full name" />
+              </div>
+            )}
+            <div className="login-field">
+              <label>Email</label>
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="user@bibliotheca.edu.com" onKeyDown={e => e.key === "Enter" && (isCreating ? handleCreate() : handleLogin())} />
+            </div>
+            <div className="login-field">
+              <label>Password</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter password" onKeyDown={e => e.key === "Enter" && (isCreating ? handleCreate() : handleLogin())} />
+            </div>
+            <button className="btn-login" onClick={isCreating ? handleCreate : handleLogin}>
+              {isCreating ? "Create Account" : "Log In"}
+            </button>
+            <div className="login-toggle">
+              {isCreating
+                ? <>Already have an account? <span onClick={() => { setIsCreating(false); setError(""); }}>Log In</span></>
+                : <>Don't have an account? <span onClick={() => { setIsCreating(true); setError(""); }}>Create Account</span></>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+
+    function App() {
+      const [currentUser, setCurrentUser] = useState(null);
+      const [theme, setTheme] = useState("dark");
+      const handleLogin = useCallback((user) => setCurrentUser(user), []);
+      const handleLogout = useCallback(async () => {
+        await fetch("/api/auth/logout", { method: "POST" });
+        setCurrentUser(null); setSavedBooks([]); setActiveTab("recs");
+      }, []);
+      const [sbOff, setSbOff] = useState(false);
+      const [mobOpen, setMobOpen] = useState(false);
+      const [selGenres, setSelGenres] = useState([]);
+      const [tabSearch, setTabSearch] = useState("");
+      const toggleGenre = useCallback((g) => {
+        setSelGenres(prev => prev.includes(g) ? [] : [g]);
+      }, []);
+      const clearGenres = () => setSelGenres([]);
+      const [query, setQuery] = useState("");
+      const [books, setBooks] = useState([]);
+      const [allBooks, setAllBooks] = useState([]);
+      const [genres, setGenres] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [meta, setMeta] = useState("");
+      const [activeTab, setActiveTab] = useState("recs");
+      const [savedBooks, setSavedBooks] = useState([]);
+      const [myBorrowedBooks, setMyBorrowedBooks] = useState([]);
+      const [staffPending, setStaffPending] = useState([]);
+      const [staffBorrowed, setStaffBorrowed] = useState([]);
+      const [staffReturned, setStaffReturned] = useState([]);
+      const [staffReturnedOffset, setStaffReturnedOffset] = useState(0);
+      const [hasMoreReturned, setHasMoreReturned] = useState(true);
+      const [loadingMoreReturned, setLoadingMoreReturned] = useState(false);
+      
+      const [expandedAcc, setExpandedAcc] = useState(null);
+
+      // Fetch all books + genres from API on mount
+      useEffect(() => {
+        fetch("/api/books").then(r => r.ok ? r.json() : []).then(setAllBooks).catch(() => { });
+        fetch("/api/books/genres").then(r => r.ok ? r.json() : []).then(setGenres).catch(() => { });
+      }, []);
+
+      const fetchStaffData = useCallback(async () => {
+        if (!currentUser || currentUser.role !== "staff") return;
+        try {
+          const rp = await fetch("/api/borrowings/pending", { cache: "no-store" });
+          if (rp.ok) { const dp = await rp.json(); setStaffPending(dp); }
+          const rb = await fetch("/api/borrowings/all-borrowed", { cache: "no-store" });
+          if (rb.ok) { const db = await rb.json(); setStaffBorrowed(db); }
+          const rr = await fetch("/api/borrowings/all-returned?offset=0&limit=100");
+          if (rr.ok) { 
+            const dr = await rr.json(); 
+            setStaffReturned(dr); 
+            setStaffReturnedOffset(100);
+            setHasMoreReturned(dr.length === 100);
+          }
+        } catch (e) { }
+      }, [currentUser]);
+
+      const loadMoreReturned = async () => {
+        if (loadingMoreReturned || !hasMoreReturned) return;
+        setLoadingMoreReturned(true);
+        try {
+          const rr = await fetch(`/api/borrowings/all-returned?offset=${staffReturnedOffset}&limit=100`);
+          if (rr.ok) {
+            const dr = await rr.json();
+            setStaffReturned(prev => [...prev, ...dr]);
+            setStaffReturnedOffset(prev => prev + 100);
+            setHasMoreReturned(dr.length === 100);
+          }
+        } catch(e) {}
+        setLoadingMoreReturned(false);
+      };
+
+      const fetchUserData = useCallback(async () => {
+        if (!currentUser || currentUser.role !== "borrower") return;
+        try {
+          const rs = await fetch("/api/books/saved", { cache: "no-store" }); if (rs.ok) { const ds = await rs.json(); setSavedBooks(ds); }
+          const rp = await fetch("/api/borrowings/my", { cache: "no-store" }); if (rp.ok) { const dp = await rp.json(); setPendingBorrows(dp); setPendingBooks(dp.map(p => ({ id: p.book_id }))); }
+          const rb = await fetch("/api/borrowings/borrowed", { cache: "no-store" }); if (rb.ok) { const db = await rb.json(); setMyBorrowedBooks(db); }
+        } catch (e) { }
+      }, [currentUser]);
+
+      useEffect(() => {
+        if (currentUser?.role === "borrower") fetchUserData();
+        else if (currentUser?.role === "staff") fetchStaffData();
+      }, [fetchUserData, fetchStaffData, currentUser]);
+
+      const toggleSave = useCallback(async (book) => {
+        if (!currentUser) return;
+        const isAlreadySaved = savedBooks.some(s => s.id === book.id);
+        if (isAlreadySaved) {
+          try {
+            const r = await fetch("/api/books/unsave", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ book_id: book.id }) });
+            if (r.ok) setSavedBooks(prev => prev.filter(s => s.id !== book.id));
+          } catch (e) { }
+        } else {
+          try {
+            const r = await fetch("/api/books/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ book_id: book.id }) });
+            if (r.ok) setSavedBooks(prev => [...prev, { ...book, id: book.id }]);
+          } catch (e) { }
+        }
+      }, [currentUser, savedBooks]);
+
+      const handleUnsaveBook = useCallback(async (book) => {
+        try {
+          const reqId = book.book_id || book.id;
+          const r = await fetch("/api/books/unsave", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ book_id: reqId }) });
+          if (r.ok) setSavedBooks(prev => prev.filter(s => s.id !== reqId));
+        } catch (e) { }
+      }, []);
+      const returnBook = useCallback(async (borrowingId) => {
+        try {
+          const r = await fetch("/api/borrowings/return", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ borrowing_id: borrowingId }) });
+          if (r.ok) {
+            setStaffBorrowed(prev => prev.filter(b => b.borrowing_id !== borrowingId));
+            fetchStaffData();
+            showToast("Book marked as returned.");
+          } else { const d = await r.json(); showToast(d.error || "Failed to return book."); }
+        } catch (e) { showToast("Error returning book."); }
+      }, [fetchStaffData, showToast]);
+      const isBorrowed = useCallback((bookId) => {
+        if (!currentUser) return false;
+        return currentUser?.borrowedBooks?.some(b => b.id === bookId) ?? false;
+      }, [currentUser]);
+
+      const [pendingBooks, setPendingBooks] = useState([]);
+      const [pendingBorrows, setPendingBorrows] = useState([]);
+      const [confirmBook, setConfirmBook] = useState(null);
+      const [ratingModal, setRatingModal] = useState(null);
+      const [hoveredStar, setHoveredStar] = useState(0);
+      const [selectedRating, setSelectedRating] = useState(0);
+
+      const submitRating = useCallback(async () => {
+        if (!ratingModal || selectedRating < 1) return;
+        try {
+          const r = await fetch("/api/borrowings/rate", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ borrowing_id: ratingModal.borrowingId, rating: selectedRating })
+          });
+          const d = await r.json();
+          if (!r.ok) { showToast(d.error || "Rating failed."); }
+          else {
+            setMyBorrowedBooks(prev => prev.map(bk =>
+              bk.borrowing_id === ratingModal.borrowingId ? { ...bk, rating: selectedRating } : bk
+            ));
+            showToast("Rating submitted! Thank you.");
+          }
+        } catch (e) { showToast("Network error."); }
+        setRatingModal(null);
+        setSelectedRating(0);
+        setHoveredStar(0);
+      }, [ratingModal, selectedRating, showToast]);
+
+      const handleBorrowRequest = useCallback((book) => {
+        if (!currentUser) return;
+        if (pendingBooks.some(p => p.id === book.id) || isBorrowed(book.id)) return;
+        setConfirmBook(book);
+      }, [currentUser, pendingBooks, isBorrowed]);
+
+      const confirmBorrow = useCallback(async () => {
+        if (!confirmBook) return;
+        try {
+          const r = await fetch("/api/borrowings/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ book_id: confirmBook.id })
+          });
+          const d = await r.json();
+          if (!r.ok) { showToast(d.error || "Request failed."); }
+          else {
+            setPendingBooks(prev => [...prev, { id: confirmBook.id }]);
+            setPendingBorrows(prev => [...prev, { borrowing_id: d.borrowing_id, book_id: confirmBook.id, title: confirmBook.title, thumbnail_url: confirmBook.thumbnail_url, status: "pending" }]);
+            showToast("Borrow request sent to librarian.");
+          }
+        } catch (e) { showToast("Network error."); }
+        setConfirmBook(null);
+      }, [confirmBook, showToast]);
+
+      const handleCancelBorrowing = useCallback(async (borrowing_id) => {
+        try {
+          const r = await fetch("/api/borrowings/cancel", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ borrowing_id }) });
+          if (r.ok) {
+            setPendingBorrows(prev => prev.filter(p => p.borrowing_id !== borrowing_id));
+            setPendingBooks(prev => { const found = pendingBorrows.find(p => p.borrowing_id === borrowing_id); return found ? prev.filter(p => p.id !== found.book_id) : prev; });
+            showToast("Request cancelled.");
+          }
+        } catch (e) { }
+      }, [showToast, pendingBorrows]);
+
+      const [chatOpen, setChatOpen] = useState(false);
+      const [toast, setToast] = useState(null);
+      const showToast = useCallback((m) => { setToast(m); setTimeout(() => setToast(null), 3200); }, []);
+
+      const handleFind = useCallback(async () => {
+        if (loading) return;
+        if (selGenres.length === 0 && !query.trim()) { showToast("Select a genre or enter a query to begin."); return; }
+        setLoading(true); setActiveTab("recs");
+
+        // Determine search mode and combined query
+        const searchMode = query.trim() ? "description" : "semantic";
+        const combinedQuery = selGenres.length > 0 && query.trim()
+          ? `${query.trim()} ${selGenres[0]}`
+          : query.trim() || selGenres[0] || "";
+
+        // --- Fallback logic (silent, reused on any external API failure) ---
+        const runFallback = async () => {
+          const pool = localFilter(allBooks, selGenres, query);
+          if (!pool.length) { setBooks([]); setMeta("No matches found."); return; }
+          const poolSlice = pool.slice(0, 30);
+          const dataStr = JSON.stringify(poolSlice);
+          const prompt = `CANDIDATE BOOKS (dataset subset):\n${dataStr}\n\nUser request:\n- Selected genre: ${selGenres.length ? selGenres[0] : "None"}\n- Natural language query: "${query || "general recommendations"}"\n\nReturn the best 6 books as a JSON array.`;
+          try {
+            let results;
+            if (pool.length <= 6 && !query.trim()) {
+              results = pool.slice(0, 6).map(b => ({ ...b, whyItFits: "Directly matches your selected genre." }));
+            } else {
+              const raw = await agentCall(REC_SYS, prompt, 2400);
+              const clean = raw.replace(/```json|```/g, "").trim();
+              results = JSON.parse(clean);
+            }
+            setBooks(results);
+            const gLabel = selGenres.length ? selGenres[0] : "All Genres";
+            setMeta(`${results.length} results \u00B7 ${gLabel}${query ? ` \u00B7 "${query.slice(0, 38)}${query.length > 38 ? "\u2026" : ""}"` : ""}`);
+          } catch {
+            const fallback = pool.slice(0, 6).map(b => ({ ...b, whyItFits: "Matches your request." }));
+            setBooks(fallback);
+            setMeta(`${fallback.length} results (local match)`);
+          }
+        };
+
+        try {
+          // Call external search API with 12-second timeout
+          const fetchPromise = fetch(`${SEARCH_API_URL}/search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: combinedQuery, mode: searchMode, top_n: 10 })
+          });
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 12000)
+          );
+          const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+          if (!response.ok) throw new Error(`API ${response.status}`);
+
+          const apiResults = await response.json();
+
+          // Empty results
+          if (!apiResults || apiResults.length === 0) {
+            setBooks([]);
+            setMeta("No books found");
+            return;
+          }
+
+          // Match returned book_ids against allBooks for full details
+          const bookIdSet = new Set(apiResults.map(r => r.book_id));
+          const matched = allBooks.filter(b => bookIdSet.has(b.id) || bookIdSet.has(b.book_id));
+
+          // Preserve the order returned by the API
+          const idToBook = {};
+          matched.forEach(b => { idToBook[b.id ?? b.book_id] = b; });
+          const ordered = apiResults
+            .map(r => idToBook[r.book_id])
+            .filter(Boolean);
+
+          // If we couldn't match any books locally, fall back silently
+          if (ordered.length === 0) { await runFallback(); return; }
+
+          setBooks(ordered);
+          const gLabel = selGenres.length ? selGenres[0] : "All Genres";
+          setMeta(`${ordered.length} results \u00B7 ${gLabel}${query ? ` \u00B7 "${query.slice(0, 38)}${query.length > 38 ? "\u2026" : ""}"` : ""}`);
+
+        } catch {
+          // Any error (network, timeout, parse) → silent fallback
+          await runFallback();
+        } finally {
+          setLoading(false);
+        }
+      }, [selGenres, query, loading, showToast, allBooks]);
+
+      const centerTitle = useMemo(() => {
+        if (activeTab === "dashboard") return <>Library <em>Dashboard</em></>;
+        if (activeTab === "returned") return <>Returned <em>Books</em></>;
+        if (activeTab === "saved") return <><em>{savedBooks.length}</em> Saved Books</>;
+        if (activeTab === "borrowed") return currentUser?.role === "staff" ? <>Borrower <em>Management</em></> : <>My <em>Borrowed</em> Books</>;
+        if (loading) return <>Finding <em>your reads</em>{"\u2026"}</>;
+        if (books.length > 0) return <><em>{books.length}</em> Recommendations</>;
+        return <>Discover <em>Books</em></>;
+      }, [books.length, loading, activeTab, savedBooks.length, currentUser]);
+
+      const allBorrowers = useMemo(() => {
+        if (currentUser?.role !== "staff") return [];
+        return []; // (Staff API implemented in next phase)
+      }, [currentUser, toast]);
+
+      if (!currentUser) return <LoginPage onLogin={handleLogin} theme={theme} />;
+
+      return (
+        <>
+          <style>{CSS}</style>
+          <div className={`app${sbOff ? " sb-off" : ""}${chatOpen ? " chat-on" : ""}`} data-theme={theme}>
+            <aside className={`lsb${mobOpen ? " mob-open" : ""}`} aria-label="Input agents">
+              <div className="lsb-head">
+                <div className="logo" style={{ background: "transparent" }}>
+                  <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="64" height="64" rx="14" fill="var(--logo-bg)" />
+                    <path d="M32 18 L20 28 L24 44 L32 36 L40 44 L44 28 Z" stroke="var(--logo-icon)" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="3 3" />
+                    <path d="M20 28 L32 36 L44 28" stroke="var(--logo-icon)" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="3 3" />
+                    <path d="M32 18 L32 36" stroke="var(--logo-icon)" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="3 3" />
+                    <path d="M32 24 C28 19 18 17 10 22 V48 C18 43 28 45 32 52 Z" fill="var(--logo-icon)" fillOpacity="0.15" />
+                    <path d="M32 24 C28 19 18 17 10 22 V48 C18 43 28 45 32 52" stroke="var(--logo-icon)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M32 24 C36 19 46 17 54 22 V48 C46 43 36 45 32 52 Z" fill="var(--logo-icon)" fillOpacity="0.15" />
+                    <path d="M32 24 C36 19 46 17 54 22 V48 C46 43 36 45 32 52" stroke="var(--logo-icon)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M32 24 V52" stroke="var(--logo-icon)" strokeWidth="2.5" strokeLinecap="round" />
+                    <circle cx="32" cy="18" r="2.5" fill="var(--logo-icon)" />
+                    <circle cx="20" cy="28" r="2" fill="var(--logo-icon)" />
+                    <circle cx="44" cy="28" r="2" fill="var(--logo-icon)" />
+                    <circle cx="24" cy="44" r="1.5" fill="var(--logo-icon)" />
+                    <circle cx="40" cy="44" r="1.5" fill="var(--logo-icon)" />
+                    <circle cx="32" cy="36" r="2" fill="var(--logo-icon)" />
+                  </svg>
+                </div>
+                {!sbOff && <div className="logo-wrap"><div className="name">Bibliotheca</div><div className="sub">Agent Library</div></div>}
+              </div>
+              <div className="lsb-body">
+                <div className="agent-section">
+                  <div className="agent-lbl">Genre Agent <span className="ai-badge">AI</span></div>
+                  <div className="genre-count-bar">
+                    <span className="gcb-label" style={{ color: "var(--text2)" }}>{selGenres.length === 0 ? "Select a genre" : `${selGenres[0].length > 22 ? selGenres[0].slice(0, 20) + "\u2026" : selGenres[0]}`}</span>
+                  </div>
+                  {selGenres.length > 0 && (
+                    <div className="sel-pills">
+                      {selGenres.map(g => {
+                        const [col, bg] = GENRE_COLORS[g] ?? ["#f0a500", "rgba(240,165,0,0.15)"];
+                        return <button key={g} className="sel-pill" style={{ background: bg + "44", border: `1px solid ${col}55`, color: col }} onClick={() => toggleGenre(g)} title={`Remove ${g}`}>{g.length > 18 ? g.slice(0, 16) + "\u2026" : g}<span className="pill-x">{"\u00D7"}</span></button>;
+                      })}
+                      <button className="sel-pill" style={{ background: "transparent", border: "1px solid var(--border2)", color: "var(--text3)" }} onClick={clearGenres}>Clear all</button>
+                    </div>
+                  )}
+                  <div className="genre-scroll">
+                    {(genres.length > 0 ? genres : Object.keys(GENRE_COLORS)).map(g => {
+                      const isActive = selGenres.includes(g);
+                      const isMaxed = !isActive && selGenres.length >= MAX_GENRES;
+                      const [col] = GENRE_COLORS[g] ?? ["#f0a500"];
+                      return (
+                        <button key={g} className={`g-btn${isActive ? " active" : ""}`} onClick={() => toggleGenre(g)} title={g}>
+                          <div className="g-btn-left">
+                            <div className="g-dot" style={{ background: isActive ? col : "var(--bg3)" }} />
+                            <span className="g-name" style={isActive ? { color: "var(--text)" } : {}}>{g}</span>
+                          </div>
+                          {isActive && <span className="g-check">{"\u2713"}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="agent-section">
+                  <div className="agent-lbl">Query Agent <span className="ai-badge">AI</span></div>
+                  <textarea className="query-ta" placeholder='e.g. "A gripping story about identity and survival"' value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && e.ctrlKey) handleFind(); }} />
+                  <button className="btn-find" onClick={handleFind} disabled={loading}>
+                    {loading ? <><span className="spin">{"\u27F3"}</span>Searching{"\u2026"}</> : "\u2726 Find Books"}
+                  </button>
+                </div>
+              </div>
+              <div className="sb-foot">
+                <button className="btn-col" onClick={() => setSbOff(s => !s)}>
+                  {sbOff ? "\u25B6" : <><span>{"\u25C0"}</span><span className="btn-col-text"> Collapse panel</span></>}
+                </button>
+              </div>
+            </aside>
+
+            <main className="center" aria-label="Recommendations">
+              <div className="ctr-top">
+                {/* Row 1: Heading + User controls */}
+                <div className="ctr-topbar">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="ctr-heading">{centerTitle}</div>
+                    <div className="ctr-sub">
+                      {activeTab === "recs" && (meta || "Select genres, type a query, then let the Recommendation Agent search our catalog")}
+                      {activeTab === "saved" && "Books you've saved for later (session only)"}
+                      {activeTab === "borrowed" && (currentUser.role === "staff" ? "View and manage all borrower activity" : "Books currently borrowed under your account")}
+                      {activeTab === "returned" && "Archive of all returned books"}
+                      {activeTab === "dashboard" && "Live analytics powered by Power BI"}
+                    </div>
+                    {activeTab === "recs" && selGenres.length > 0 && (
+                      <div className="active-genres">
+                        {selGenres.map(g => {
+                          const [col, bg] = GENRE_COLORS[g] ?? ["#f0a500", "rgba(240,165,0,0.15)"];
+                          return <span key={g} className="ag-chip" style={{ background: bg + "55", border: `1px solid ${col}44`, color: col }}>{g}</span>;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="ctr-user">
+                    <button className="tab" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}>
+                      {theme === "dark" ? "\u2600\uFE0F" : "\uD83C\uDF19"}
+                    </button>
+                    <div className="user-badge">
+                      <span className="user-email">{currentUser.username}</span>
+                      <span className={`role-tag ${currentUser.role}`}>{currentUser.role}</span>
+                    </div>
+                    <button className="btn-logout" onClick={handleLogout}>Logout</button>
+                    <button className={`chat-btn${!chatOpen ? " float-anim" : ""}`} onClick={() => setChatOpen(o => !o)} title="Chat with AI Myra" style={{ marginLeft: "6px" }}>
+                      {chatOpen ? "\u2715" : "\uD83E\uDD16"}
+                    </button>
+                  </div>
+                </div>
+                {/* Row 2: Navigation tabs */}
+                <div className="ctr-tabs">
+                  {currentUser.role === "staff"
+                    ? [["recs", "Recommendations"], ["pending_borrows", "Pending"], ["borrowed", "Borrowed"], ["returned", "Returned"], ["dashboard", "Dashboard"]].map(([k, l]) => (
+                      <button key={k} className={`tab${activeTab === k ? " on" : ""}`} onClick={() => { setActiveTab(k); if (k !== "dashboard") fetchStaffData(); }}>{l}</button>
+                    ))
+                    : [["recs", "Recommendations"], ["saved", "Saved"], ["pending_borrows", "Pending"], ["borrowed", "Borrowed"]].map(([k, l]) => (
+                      <button key={k} className={`tab${activeTab === k ? " on" : ""}`} onClick={() => { setActiveTab(k); fetchUserData(); }}>{l}</button>
+                    ))
+                  }
+                </div>
+              </div>
+
+              <div className="ctr-scroll">
+                {activeTab === "recs" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    <input
+                      type="text"
+                      value={tabSearch}
+                      onChange={e => setTabSearch(e.target.value)}
+                      placeholder="Search by title, author, category…"
+                      style={{
+                        width: "100%",
+                        background: "var(--bg2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--r)",
+                        padding: "10px 14px",
+                        fontFamily: "var(--font-s)",
+                        fontSize: "14px",
+                        color: "var(--text)",
+                        outline: "none",
+                        transition: "all 0.18s"
+                      }}
+                      onFocus={e => {
+                        e.target.style.borderColor = "var(--amber2)";
+                        e.target.style.boxShadow = "0 0 0 3px var(--amber-bg)";
+                      }}
+                      onBlur={e => {
+                        e.target.style.borderColor = "var(--border)";
+                        e.target.style.boxShadow = "none";
+                      }}
+                    />
+
+                    {loading ? <Skeleton /> : (() => {
+                      let disp = books;
+                      if (tabSearch.trim()) {
+                        const q = tabSearch.toLowerCase();
+                        disp = books.filter(b =>
+                          (b.title?.toLowerCase() || "").includes(q) ||
+                          (b.author?.toLowerCase() || "").includes(q) ||
+                          (b.genre?.toLowerCase() || "").includes(q) ||
+                          (b.description?.toLowerCase() || "").includes(q) ||
+                          (b.subtitle?.toLowerCase() || "").includes(q)
+                        );
+                      }
+
+                      if (books.length === 0) {
+                        return (
+                          <div className="empty">
+                            <div className="empty-icon">{"\uD83D\uDD2D"}</div>
+                            <div className="empty-h">Your next great read awaits</div>
+                            <div className="empty-p">Choose <strong>up to 3 genres</strong> from the left panel and describe what you're looking for. The Recommendation Agent will search our catalog and surface the best matches. Or ask AI Myra in the chat.</div>
+                          </div>
+                        );
+                      } else if (disp.length === 0) {
+                        return (
+                          <div className="empty" style={{ padding: "40px" }}>
+                            <div className="empty-h">No matches found for "{tabSearch}"</div>
+                            <div className="empty-p">Try adjusting your search terms.</div>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="book-grid">
+                            {disp.map(b => <BookCard key={b.id} book={b} onSave={toggleSave} onBorrow={handleBorrowRequest} isSaved={savedBooks.some(s => s.id === b.id)} isBorrowed={isBorrowed(b.id)} isPending={pendingBooks.some(p => p.id === b.id)} />)}
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
+                )}
+                {activeTab === "saved" && (
+                  savedBooks.length === 0 ? (
+                    <div className="empty"><div className="empty-icon">{"\uD83D\uDD16"}</div><div className="empty-h">No saved books yet</div><div className="empty-p">Click the save icon on any book card to add it to your list.</div></div>
+                  ) : (
+                    <div className="book-grid">{savedBooks.map(b => <BookCard key={b.id || b.book_id} book={b} onRemoveOnly={handleUnsaveBook} onBorrow={handleBorrowRequest} isSaved={true} isBorrowed={isBorrowed(b.id || b.book_id)} isPending={pendingBooks.some(p => p.id === (b.id || b.book_id))} />)}</div>
+                  )
+                )}
+                {activeTab === "pending_borrows" && currentUser.role === "staff" && (
+                  staffPending.length === 0 ? (
+                    <div className="empty"><div className="empty-icon">{"\uD83D\uDCCB"}</div><div className="empty-h">No pending requests</div><div className="empty-p">All borrowing requests have been processed.</div></div>
+                  ) : (
+                    <div className="fav-list" style={{ gap: "10px", display: "flex", flexDirection: "column" }}>
+                      {staffPending.map(sp => {
+                        const fullBook = books.find(b => b.id === sp.book_id) || {};
+                        const isExp = expandedAcc === sp.borrowing_id;
+                        return (
+                          <div key={sp.borrowing_id} style={{ background: "var(--bg1)", border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden" }}>
+                            <div onClick={() => setExpandedAcc(isExp ? null : sp.borrowing_id)} style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: isExp ? "var(--bg2)" : "transparent" }}>
+                              <div>
+                                <div><strong style={{ color: "var(--text)" }}>{sp.borrower_name}</strong> <span style={{ color: "var(--text3)", fontSize: "13px" }}>{sp.borrower_email}</span></div>
+                                <div style={{ color: "var(--amber)", fontWeight: "600", fontSize: "14px", marginTop: "4px" }}>{sp.title}</div>
+                                <div style={{ color: "var(--text3)", fontSize: "11px", marginTop: "4px", fontFamily: "monospace" }}>{sp.borrowing_id}</div>
+                              </div>
+                              <div style={{ color: "var(--text3)" }}>{isExp ? "\u25B2" : "\u25BC"}</div>
+                            </div>
+                            {isExp && (
+                              <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)", background: "var(--bg0)" }}>
+                                <div style={{ fontSize: "13px", color: "var(--text2)", marginBottom: "16px" }}>
+                                  <div><strong>Author:</strong> {fullBook.author || "Unknown"}</div>
+                                  <div><strong>Category:</strong> {fullBook.genre || "Unknown"}</div>
+                                </div>
+                                <div style={{ display: "flex", gap: "10px" }}>
+                                  <button onClick={() => {
+                                    fetch("/api/borrowings/approve", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ borrowing_id: sp.borrowing_id }) }).then(async r => {
+                                      if (r.ok) { setStaffPending(prev => prev.filter(x => x.borrowing_id !== sp.borrowing_id)); fetchStaffData(); showToast("Request approved."); }
+                                      else { const d = await r.json().catch(()=>({})); showToast(d.error || "Failed to approve request."); }
+                                    }).catch(e => showToast("Network error."));
+                                  }} style={{ background: "var(--green)", color: "#000", padding: "6px 14px", borderRadius: "6px", border: "none", fontWeight: "600", cursor: "pointer", fontSize: "13px" }}>Approve</button>
+
+                                  <button onClick={() => {
+                                    fetch("/api/borrowings/cancel", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ borrowing_id: sp.borrowing_id }) }).then(async r => {
+                                      if (r.ok) { setStaffPending(prev => prev.filter(x => x.borrowing_id !== sp.borrowing_id)); showToast("Request cancelled."); }
+                                      else { const d = await r.json().catch(()=>({})); showToast(d.error || "Failed to cancel request."); }
+                                    }).catch(e => showToast("Network error."));
+                                  }} style={{ background: "transparent", color: "var(--red)", border: "1px solid var(--red)", padding: "5px 13px", borderRadius: "6px", fontWeight: "600", cursor: "pointer", fontSize: "13px" }}>Cancel</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+                {activeTab === "pending_borrows" && currentUser.role === "borrower" && (
+                  pendingBorrows.length === 0 ? (
+                    <div className="empty"><div className="empty-icon">{"\uD83D\uDCCB"}</div><div className="empty-h">No pending requests</div><div className="empty-p">Your borrow requests will appear here once submitted.</div></div>
+                  ) : (
+                    <div className="fav-list">{pendingBorrows.map(pb => (
+                      <div key={pb.borrowing_id} className="frow">
+                        {pb.thumbnail_url && <img src={pb.thumbnail_url} alt="" style={{ width: "40px", height: "56px", objectFit: "cover", borderRadius: "4px" }} />}
+                        <div className="frow-info">
+                          <div className="frow-title">{pb.title}</div>
+                          <div className="frow-author"><span style={{ color: "var(--amber)", fontSize: "11px", border: "1px solid var(--amber)", padding: "2px 6px", borderRadius: "4px", fontWeight: "600" }}>Pending approval</span></div>
+                        </div>
+                        <button className="btn-rmv" onClick={() => handleCancelBorrowing(pb.borrowing_id)} style={{ color: "var(--text3)", borderColor: "var(--border)" }} onMouseOver={e => e.currentTarget.style.borderColor = "var(--red)"} onMouseOut={e => e.currentTarget.style.borderColor = "var(--border)"}>Cancel Request</button>
+                      </div>
+                    ))}</div>
+                  )
+                )}
+                {activeTab === "borrowed" && currentUser.role === "staff" && (
+                  staffBorrowed.length === 0 ? (
+                    <div className="empty"><div className="empty-icon">{"\uD83D\uDCDA"}</div><div className="empty-h">No active borrowings</div><div className="empty-p">Approved requests will appear here.</div></div>
+                  ) : (
+                    <div className="fav-list" style={{ gap: "10px", display: "flex", flexDirection: "column" }}>
+                      {staffBorrowed.map(sb => (
+                        <div key={sb.borrowing_id} className="frow" style={{ border: "1px solid var(--border)", background: "var(--bg1)" }}>
+                          <div className="frow-info">
+                            <div><strong style={{ color: "var(--text)" }}>{sb.borrower_name}</strong> <span style={{ color: "var(--text3)", fontSize: "13px" }}>{sb.borrower_email}</span></div>
+                            <div style={{ color: "var(--amber)", fontWeight: "600", fontSize: "14px", marginTop: "4px" }}>{sb.title}</div>
+                            <div style={{ color: "var(--text2)", fontSize: "12px", marginTop: "4px" }}>Approved: {sb.borrow_date || "Recently"}</div>
+                            {sb.approved_by && <div style={{ color: "var(--text3)", fontSize: "11px", marginTop: "2px" }}>Approved by: {sb.approved_by}</div>}
+                          </div>
+                          <button className="btn-rmv" onClick={() => returnBook(sb.borrowing_id)} style={{ color: "var(--amber)", borderColor: "var(--amber)", opacity: 0.8 }} onMouseOver={e => e.currentTarget.style.opacity = 1} onMouseOut={e => e.currentTarget.style.opacity = 0.8}>Return</button>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+                {activeTab === "borrowed" && currentUser.role === "borrower" && (
+                  myBorrowedBooks.length === 0 ? (
+                    <div className="empty"><div className="empty-icon">{"\uD83D\uDCDA"}</div><div className="empty-h">No borrowed books</div><div className="empty-p">Your approved borrowings will appear here.</div></div>
+                  ) : (
+                    <div className="fav-list">{myBorrowedBooks.map(bk => (
+                      <div key={bk.borrowing_id} className="frow">
+                        {bk.thumbnail_url && <img src={bk.thumbnail_url} alt="" style={{ width: "40px", height: "56px", objectFit: "cover", borderRadius: "4px" }} />}
+                        <div className="frow-info">
+                          <div className="frow-title">{bk.title}</div>
+                          <div className="frow-author"><span style={{ color: "var(--green)", fontSize: "11px", fontWeight: "600" }}>Approved: {bk.borrow_date || "Recently"}</span></div>
+                          {bk.rating != null && (
+                            <div style={{ fontSize: "13px", marginTop: "4px" }}>
+                              <StarRating rating={bk.rating} size={14} uid={`borrowed-${bk.borrowing_id}`} />
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          className="btn-rmv"
+                          onClick={() => bk.rating == null && setRatingModal({ borrowingId: bk.borrowing_id, bookTitle: bk.title })}
+                          disabled={bk.rating != null}
+                          style={bk.rating != null ? { opacity: 0.5, cursor: "not-allowed", color: "var(--amber)", borderColor: "var(--amber)" } : { color: "var(--amber)", borderColor: "var(--amber)" }}
+                        >{bk.rating != null ? "\u2605 Rated" : "Rate \u2605"}</button>
+                      </div>
+                    ))}</div>
+                  )
+                )}
+                {activeTab === "returned" && currentUser.role === "staff" && (
+                  staffReturned.length === 0 ? (
+                    <div className="empty"><div className="empty-icon">{"\uD83D\uDCDA"}</div><div className="empty-h">No returned books yet</div><div className="empty-p">Books marked as returned will appear here.</div></div>
+                  ) : (
+                    <div className="fav-list" style={{ gap: "10px", display: "flex", flexDirection: "column" }}>
+                      {staffReturned.map(sr => (
+                        <div key={sr.borrowing_id} className="frow" style={{ border: "1px solid var(--border)", background: "var(--bg1)" }}>
+                          <div className="frow-info">
+                            <div><strong style={{ color: "var(--text)" }}>{sr.borrower_name}</strong> <span style={{ color: "var(--text3)", fontSize: "13px" }}>{sr.borrower_email}</span></div>
+                            <div style={{ color: "var(--amber)", fontWeight: "600", fontSize: "14px", marginTop: "4px" }}>{sr.title}</div>
+                            <div style={{ color: "var(--text2)", fontSize: "12px", marginTop: "4px" }}>Borrowed: {sr.borrow_date || "N/A"} | Returned: {sr.return_date || "Recently"}</div>
+                            {sr.rating != null && (
+                              <div style={{ marginTop: "4px" }}>
+                                <StarRating rating={sr.rating} size={14} uid={`returned-${sr.borrowing_id}`} />
+                              </div>
+                            )}
+                            {sr.approved_by && <div style={{ color: "var(--text3)", fontSize: "11px", marginTop: "2px" }}>Approved by: {sr.approved_by}</div>}
+                          </div>
+                        </div>
+                      ))}
+                      {hasMoreReturned && (
+                        <button 
+                          onClick={loadMoreReturned} 
+                          disabled={loadingMoreReturned}
+                          style={{ padding: "10px", marginTop: "4px", background: "var(--bg1)", border: "1px solid var(--border)", borderRadius: "var(--r)", color: "var(--text)", cursor: "pointer", fontWeight: "600", transition: "all 0.2s" }}
+                          onMouseOver={(e) => { e.target.style.background = "var(--border)"; e.target.style.color = "var(--amber)"; }}
+                          onMouseOut={(e) => { e.target.style.background = "var(--bg1)"; e.target.style.color = "var(--text)"; }}
+                        >
+                          {loadingMoreReturned ? "Loading..." : "Load More Returned Books \u2193"}
+                        </button>
+                      )}
+                    </div>
+                  )
+                )}
+                {activeTab === "dashboard" && currentUser.role === "staff" && (
+                  <iframe
+                    title="Dashboard"
+                    src="https://app.powerbi.com/reportEmbed?reportId=7fad15cc-1536-42dc-9d5c-77fc2a3ceb5f&autoAuth=true&ctid=cceb61f2-e867-476f-8597-b4cf22555bc4&navContentPaneEnabled=false&filterPaneEnabled=false&transparent=1&pageView=fitToWidth"
+                    frameBorder="0"
+                    allowFullScreen={true}
+                    allowTransparency={true}
+                    style={{
+                      width: "100%",
+                      aspectRatio: "16 / 9",
+                      border: "none",
+                      borderRadius: "var(--r)",
+                      background: "transparent"
+                    }}
+                  />
+                )}
+              </div>
+            </main>
+
+            <div className="chat-panel" role="complementary" aria-label="Chatbot agent AI Myra">
+              <div className="chat-head">
+                <div className="chat-ava">{"\uD83E\uDD16"}</div>
+                <div>
+                  <div className="chat-name">AI Myra</div>
+                  <div className="chat-status"><span className="sdot" />RAG-Powered Agent</div>
+                </div>
+                <button className="chat-x" onClick={() => setChatOpen(false)} aria-label="Close chat">{"\u2715"}</button>
+              </div>
+              <ChatIframe theme={theme} />
+            </div>
+          </div>
+          {confirmBook && (
+            <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ background: "var(--bg1)", borderRadius: "16px", padding: "32px", maxWidth: "400px", width: "90%", boxShadow: "var(--shadow-lg)" }}>
+                <h3 style={{ fontSize: "18px", marginBottom: "12px", fontFamily: "var(--font-d)", color: "var(--text)" }}>Borrow this book?</h3>
+                <p style={{ fontSize: "14px", color: "var(--text2)", marginBottom: "8px", lineHeight: "1.5" }}>
+                  <strong style={{ color: "var(--amber)" }}>{confirmBook.title}</strong>
+                </p>
+                <p style={{ fontSize: "13px", color: "var(--text3)", marginBottom: "24px" }}>A request will be sent to the librarian for approval.</p>
+                <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                  <button onClick={() => setConfirmBook(null)} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", color: "var(--text3)", cursor: "pointer", fontSize: "13px" }}>Cancel</button>
+                  <button onClick={confirmBorrow} style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: "var(--amber)", color: "#0d0f14", fontWeight: "600", cursor: "pointer", fontSize: "13px" }}>Confirm</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {ratingModal && (
+            <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ background: "var(--bg1)", borderRadius: "16px", padding: "32px", maxWidth: "400px", width: "90%", boxShadow: "var(--shadow-lg)", textAlign: "center" }}>
+                <h3 style={{ fontSize: "18px", marginBottom: "10px", fontFamily: "var(--font-d)", color: "var(--text)" }}>Rate this book</h3>
+                <p style={{ fontSize: "14px", marginBottom: "20px" }}><strong style={{ color: "var(--amber)" }}>{ratingModal.bookTitle}</strong></p>
+                <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginBottom: "24px" }}>
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <span
+                      key={star}
+                      onMouseEnter={() => setHoveredStar(star)}
+                      onMouseLeave={() => setHoveredStar(0)}
+                      onClick={() => setSelectedRating(star)}
+                      style={{ fontSize: "28px", cursor: "pointer", color: star <= (hoveredStar || selectedRating) ? "var(--amber)" : "var(--text3)", transition: "color 0.12s" }}
+                    >{star <= (hoveredStar || selectedRating) ? "\u2605" : "\u2606"}</span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                  <button onClick={() => { setRatingModal(null); setSelectedRating(0); setHoveredStar(0); }} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", color: "var(--text3)", cursor: "pointer", fontSize: "13px" }}>Cancel</button>
+                  <button onClick={submitRating} disabled={selectedRating < 1} style={{ padding: "8px 16px", borderRadius: "8px", border: "none", background: selectedRating >= 1 ? "var(--amber)" : "var(--border)", color: selectedRating >= 1 ? "#0d0f14" : "var(--text3)", fontWeight: "600", cursor: selectedRating >= 1 ? "pointer" : "not-allowed", fontSize: "13px", transition: "all 0.15s" }}>Submit Rating</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {toast && <div className="toast">{"\u26A0"} {toast}</div>}
+        </>
+      );
+    }
+
+
+
+    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+  </script>
+  {% endraw %}
+</body>
+
+</html>
