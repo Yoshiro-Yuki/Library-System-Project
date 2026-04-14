@@ -4,3 +4,4 @@ PyMySQL==1.*
 python-dotenv==1.*
 Werkzeug==3.*
 cryptography==42.*
+gunicorn
