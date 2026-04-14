@@ -1,0 +1,6 @@
+Flask==3.*
+Flask-SQLAlchemy==3.*
+PyMySQL==1.*
+python-dotenv==1.*
+Werkzeug==3.*
+cryptography==42.*
