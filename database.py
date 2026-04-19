@@ -18,6 +18,8 @@ class DimBook(db.Model):
     thumbnail_url = Column(Text)
     info_link = Column(Text)
     average_rating = Column(Numeric(3, 2), server_default="0.00")
+    copies_available = Column(Integer, server_default="1")
+    publication_year = Column(Integer)
 
 class DimAuthor(db.Model):
     __tablename__ = 'dim_authors'

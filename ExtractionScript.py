@@ -1,23 +1,15 @@
 import pandas as pd
 import mysql.connector
-import os
-from dotenv import load_dotenv  
 
-load_dotenv()  # Load environment variables from .env file
-
-def extract_from_db(description=False):
+def extract_from_db(ssl_path='isrgroot.pem', description=False):
     try: 
-        cert_content = os.getenv('cert')
-        with open("temp_cert.pem", "w") as f:
-            f.write(cert_content)
-
         conn = mysql.connector.connect(
-            host=os.getenv('host'),
-            user=os.getenv('user'),
+            host="gateway01.ap-southeast-1.prod.aws.tidbcloud.com",
+            user="3c7nm7q6RHzNf6t.root",
             port=4000,
-            password=os.getenv('password'),
+            password="6tTTy8Rk1cEiH1dR",
             database='library_db',
-            ssl_ca= "temp_cert.pem",
+            ssl_ca= ssl_path,
             ssl_disabled=False
         )
 

@@ -12,6 +12,12 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
 
+# --- Upload folder configuration for book cover images ---
+UPLOAD_FOLDER = os.path.join(app.static_folder, "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB max upload size
+
 DB_HOST = os.environ.get("DB_HOST")
 DB_PORT = os.environ.get("DB_PORT", "4000")
 DB_USER = os.environ.get("DB_USER")

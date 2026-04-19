@@ -318,6 +318,56 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
 .btn-return{padding:4px 10px;border-radius:5px;font-size:10px;font-weight:600;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;transition:all 0.18s;font-family:var(--font-s)}
 .btn-return:hover{border-color:var(--amber);color:var(--amber)}
 
+/* ====================================================================
+   ADD BOOK FORM — Staff-only form for adding new books to catalog
+   ==================================================================== */
+.addbook-wrap{max-width:720px;margin:0 auto;animation:cardUp 0.35s var(--ease) both}
+.addbook-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.addbook-header{padding:24px 28px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(240,165,0,0.06),transparent)}
+.addbook-header h2{font-family:var(--font-d);font-size:22px;font-weight:700;color:var(--text);margin-bottom:4px}
+.addbook-header p{font-size:13px;color:var(--text3);line-height:1.5}
+.addbook-body{padding:28px}
+.addbook-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.addbook-full{grid-column:1/-1}
+.addbook-field{display:flex;flex-direction:column;gap:6px}
+.addbook-field label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text2)}
+.addbook-field label .req{color:var(--red);margin-left:2px}
+.addbook-field input,.addbook-field select,.addbook-field textarea{width:100%;padding:11px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--font-s);font-size:14.5px;outline:none;transition:all 0.18s}
+.addbook-field input:focus,.addbook-field select:focus,.addbook-field textarea:focus{border-color:var(--amber2);box-shadow:0 0 0 3px var(--amber-bg)}
+.addbook-field input.field-err,.addbook-field select.field-err,.addbook-field textarea.field-err{border-color:var(--red);box-shadow:0 0 0 3px var(--red-bg)}
+.addbook-field textarea{min-height:100px;resize:vertical;line-height:1.55}
+.addbook-field select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239a9587' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.addbook-field select option{background:var(--bg2);color:var(--text)}
+.field-error{font-size:11px;color:var(--red);font-weight:500;min-height:16px;line-height:1.4}
+
+/* Cover image upload area */
+.addbook-upload{border:2px dashed var(--border2);border-radius:var(--r);padding:24px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.addbook-upload:hover{border-color:var(--amber);background:var(--amber-bg)}
+.addbook-upload.has-preview{border-style:solid;border-color:var(--amber);padding:0}
+.addbook-upload input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;z-index:2}
+.addbook-upload-icon{font-size:36px;opacity:0.3;margin-bottom:8px}
+.addbook-upload-text{font-size:13px;color:var(--text3);line-height:1.6}
+.addbook-upload-text strong{color:var(--amber)}
+.addbook-preview{width:100%;height:200px;object-fit:cover;display:block;border-radius:calc(var(--r) - 2px)}
+.addbook-preview-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);opacity:0;transition:opacity 0.18s;z-index:1;border-radius:calc(var(--r) - 2px)}
+.addbook-upload.has-preview:hover .addbook-preview-overlay{opacity:1}
+.addbook-preview-overlay span{color:#fff;font-size:13px;font-weight:600;padding:6px 14px;background:rgba(0,0,0,0.5);border-radius:20px}
+
+/* Submit button */
+.addbook-footer{padding:0 28px 28px;display:flex;align-items:center;gap:14px}
+.btn-addbook{flex:1;padding:14px;background:linear-gradient(135deg,var(--amber),var(--amber2));color:#0d0f14;border:none;border-radius:var(--r);font-family:var(--font-s);font-size:15px;font-weight:700;cursor:pointer;transition:all 0.18s;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:0.3px}
+.btn-addbook:hover{transform:translateY(-1px);box-shadow:0 6px 24px var(--amber-glow)}
+.btn-addbook:disabled{background:var(--bg3);color:var(--text3);cursor:not-allowed;transform:none;box-shadow:none}
+.btn-addbook-reset{padding:14px 24px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--font-s);font-size:14px;font-weight:600;transition:all 0.18s}
+.btn-addbook-reset:hover{border-color:var(--border2);color:var(--text)}
+
+/* Success banner */
+.addbook-success{padding:16px 20px;background:var(--green-bg);border:1px solid rgba(52,211,153,0.3);border-radius:var(--r);display:flex;align-items:center;gap:12px;margin-bottom:20px;animation:cardUp 0.3s var(--ease) both}
+.addbook-success-icon{font-size:24px}
+.addbook-success-text{flex:1}
+.addbook-success-text strong{color:var(--green);display:block;font-size:14px;margin-bottom:2px}
+.addbook-success-text span{color:var(--text2);font-size:12px}
+
 @media(max-width:720px){
   .app{grid-template-columns:0 1fr}
   .lsb{position:fixed;left:0;top:0;bottom:0;width:var(--lw);transform:translateX(-100%);transition:transform 0.28s var(--ease)}
@@ -325,6 +375,7 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
   .chat-panel{width:100%}
   .ctr-scroll{padding:16px 14px 80px}
   .ctr-top{padding:16px 14px}
+  .addbook-grid{grid-template-columns:1fr}
 }
 `;
 
@@ -450,6 +501,332 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
                 </>
               )}
             </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ====================================================================
+    // ADD BOOK FORM — Staff-only component for adding new books
+    // ====================================================================
+    function AddBookForm({ genres, showToast, onBookAdded }) {
+      // Form state for all fields
+      const [form, setForm] = useState({
+        title: "", author: "", isbn: "", category: "",
+        publication_year: "", description: "", copies_available: "1"
+      });
+      // Field-level validation error messages
+      const [errors, setErrors] = useState({});
+      // Cover image file + preview URL
+      const [coverFile, setCoverFile] = useState(null);
+      const [coverPreview, setCoverPreview] = useState(null);
+      // Submission state
+      const [submitting, setSubmitting] = useState(false);
+      const [successInfo, setSuccessInfo] = useState(null);
+
+      // --- Handle input changes ---
+      const handleChange = (field, value) => {
+        setForm(prev => ({ ...prev, [field]: value }));
+        // Clear error when user starts typing
+        if (errors[field]) setErrors(prev => ({ ...prev, [field]: "" }));
+      };
+
+      // --- Handle cover image selection with preview ---
+      const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        // Validate file type client-side
+        const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        if (!allowed.includes(file.type)) {
+          setErrors(prev => ({ ...prev, cover_image: "Invalid file type. Use PNG, JPG, GIF, or WEBP." }));
+          return;
+        }
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+          setErrors(prev => ({ ...prev, cover_image: "File too large. Maximum 5MB." }));
+          return;
+        }
+        setCoverFile(file);
+        setCoverPreview(URL.createObjectURL(file));
+        setErrors(prev => ({ ...prev, cover_image: "" }));
+      };
+
+      // --- Client-side validation before submission ---
+      const validate = () => {
+        const errs = {};
+        // Required fields
+        if (!form.title.trim()) errs.title = "Book title is required.";
+        if (!form.author.trim()) errs.author = "Author name is required.";
+        if (!form.category) errs.category = "Please select a genre/category.";
+
+        // Publication year: 4-digit number validation
+        if (!form.publication_year.trim()) {
+          errs.publication_year = "Publication year is required.";
+        } else {
+          const yr = parseInt(form.publication_year, 10);
+          const currentYear = new Date().getFullYear();
+          if (isNaN(yr) || yr < 1000 || yr > currentYear + 1) {
+            errs.publication_year = `Year must be between 1000 and ${currentYear + 1}.`;
+          }
+        }
+
+        // Copies available: positive integer
+        if (!form.copies_available.trim()) {
+          errs.copies_available = "Number of copies is required.";
+        } else {
+          const copies = parseInt(form.copies_available, 10);
+          if (isNaN(copies) || copies < 1) errs.copies_available = "Copies must be at least 1.";
+        }
+
+        // ISBN format check (optional, but validate if provided)
+        if (form.isbn.trim()) {
+          const isbnClean = form.isbn.replace(/[-\s]/g, "");
+          const isISBN13 = /^\d{13}$/.test(isbnClean);
+          const isISBN10 = /^\d{9}[\dXx]$/.test(isbnClean);
+          if (!isISBN13 && !isISBN10) {
+            errs.isbn = "ISBN must be a valid ISBN-10 (10 digits) or ISBN-13 (13 digits).";
+          }
+        }
+
+        setErrors(errs);
+        return Object.keys(errs).length === 0;
+      };
+
+      // --- Form submission ---
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSuccessInfo(null);
+
+        // Run client-side validation first
+        if (!validate()) return;
+
+        setSubmitting(true);
+
+        // Build JSON payload (no FormData — pure JSON for reliable session handling)
+        const payload = {
+          title: form.title.trim(),
+          author: form.author.trim(),
+          isbn: form.isbn.trim(),
+          category: form.category,
+          publication_year: form.publication_year.trim(),
+          description: form.description.trim(),
+          copies_available: form.copies_available.trim()
+        };
+
+        try {
+          const res = await fetch("/api/books/add", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+
+          if (!res.ok) {
+            // Server returned validation errors
+            if (data.fields) {
+              setErrors(data.fields);
+              showToast("Please fix the errors below.");
+            } else {
+              showToast(data.error || "Failed to add book.");
+            }
+            setSubmitting(false);
+            return;
+          }
+
+          // Success — show banner and reset form
+          setSuccessInfo({ title: data.title, book_id: data.book_id, author: data.author });
+          showToast(`Book "${data.title}" added successfully!`);
+          // Reset form
+          setForm({ title: "", author: "", isbn: "", category: "", publication_year: "", description: "", copies_available: "1" });
+          setCoverFile(null);
+          setCoverPreview(null);
+          setErrors({});
+          // Notify parent to refresh book list
+          if (onBookAdded) onBookAdded();
+
+        } catch (err) {
+          showToast("Network error. Please try again.");
+        }
+        setSubmitting(false);
+      };
+
+      // --- Reset form handler ---
+      const resetForm = () => {
+        setForm({ title: "", author: "", isbn: "", category: "", publication_year: "", description: "", copies_available: "1" });
+        setCoverFile(null);
+        setCoverPreview(null);
+        setErrors({});
+        setSuccessInfo(null);
+      };
+
+      return (
+        <div className="addbook-wrap">
+          {/* Success banner after adding a book */}
+          {successInfo && (
+            <div className="addbook-success">
+              <div className="addbook-success-icon">{"\u2705"}</div>
+              <div className="addbook-success-text">
+                <strong>Book added successfully!</strong>
+                <span>"{successInfo.title}" by {successInfo.author} — ID: {successInfo.book_id}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="addbook-card">
+            <div className="addbook-header">
+              <h2>{"\uD83D\uDCDA"} Add New Book</h2>
+              <p>Fill in the details below to add a new book to the library catalog.</p>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="addbook-body">
+                <div className="addbook-grid">
+                  {/* Book Title — required */}
+                  <div className="addbook-field addbook-full">
+                    <label htmlFor="addbook-title">Book Title <span className="req">*</span></label>
+                    <input
+                      id="addbook-title"
+                      type="text"
+                      placeholder="e.g. The Great Gatsby"
+                      value={form.title}
+                      onChange={e => handleChange("title", e.target.value)}
+                      className={errors.title ? "field-err" : ""}
+                      maxLength={500}
+                    />
+                    <div className="field-error">{errors.title || ""}</div>
+                  </div>
+
+                  {/* Author — required */}
+                  <div className="addbook-field">
+                    <label htmlFor="addbook-author">Author <span className="req">*</span></label>
+                    <input
+                      id="addbook-author"
+                      type="text"
+                      placeholder="e.g. F. Scott Fitzgerald"
+                      value={form.author}
+                      onChange={e => handleChange("author", e.target.value)}
+                      className={errors.author ? "field-err" : ""}
+                      maxLength={255}
+                    />
+                    <div className="field-error">{errors.author || ""}</div>
+                  </div>
+
+                  {/* ISBN — optional */}
+                  <div className="addbook-field">
+                    <label htmlFor="addbook-isbn">ISBN <span style={{color:"var(--text3)",fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:"10px"}}>(optional)</span></label>
+                    <input
+                      id="addbook-isbn"
+                      type="text"
+                      placeholder="e.g. 978-3-16-148410-0"
+                      value={form.isbn}
+                      onChange={e => handleChange("isbn", e.target.value)}
+                      className={errors.isbn ? "field-err" : ""}
+                      maxLength={17}
+                    />
+                    <div className="field-error">{errors.isbn || ""}</div>
+                  </div>
+
+                  {/* Genre/Category — required, dropdown */}
+                  <div className="addbook-field">
+                    <label htmlFor="addbook-category">Genre / Category <span className="req">*</span></label>
+                    <select
+                      id="addbook-category"
+                      value={form.category}
+                      onChange={e => handleChange("category", e.target.value)}
+                      className={errors.category ? "field-err" : ""}
+                    >
+                      <option value="">Select a category…</option>
+                      {genres.map(g => <option key={g} value={g}>{g}</option>)}
+                      <option value="__custom">+ Add custom category</option>
+                    </select>
+                    {form.category === "__custom" && (
+                      <input
+                        type="text"
+                        placeholder="Enter custom category name"
+                        style={{marginTop:"8px"}}
+                        onChange={e => setForm(prev => ({...prev, category: e.target.value || "__custom"}))}
+                        autoFocus
+                      />
+                    )}
+                    <div className="field-error">{errors.category || ""}</div>
+                  </div>
+
+                  {/* Publication Year — required */}
+                  <div className="addbook-field">
+                    <label htmlFor="addbook-year">Publication Year <span className="req">*</span></label>
+                    <input
+                      id="addbook-year"
+                      type="number"
+                      placeholder="e.g. 2024"
+                      value={form.publication_year}
+                      onChange={e => handleChange("publication_year", e.target.value)}
+                      className={errors.publication_year ? "field-err" : ""}
+                      min="1000" max="9999"
+                    />
+                    <div className="field-error">{errors.publication_year || ""}</div>
+                  </div>
+
+                  {/* Copies Available — required */}
+                  <div className="addbook-field">
+                    <label htmlFor="addbook-copies">Copies Available <span className="req">*</span></label>
+                    <input
+                      id="addbook-copies"
+                      type="number"
+                      placeholder="e.g. 5"
+                      value={form.copies_available}
+                      onChange={e => handleChange("copies_available", e.target.value)}
+                      className={errors.copies_available ? "field-err" : ""}
+                      min="1"
+                    />
+                    <div className="field-error">{errors.copies_available || ""}</div>
+                  </div>
+
+                  {/* Description — optional */}
+                  <div className="addbook-field addbook-full">
+                    <label htmlFor="addbook-desc">Description / Synopsis <span style={{color:"var(--text3)",fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:"10px"}}>(optional)</span></label>
+                    <textarea
+                      id="addbook-desc"
+                      placeholder="Brief summary of the book…"
+                      value={form.description}
+                      onChange={e => handleChange("description", e.target.value)}
+                      maxLength={2000}
+                    />
+                  </div>
+
+                  {/* Cover Image Upload — optional */}
+                  <div className="addbook-field addbook-full">
+                    <label>Cover Image <span style={{color:"var(--text3)",fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:"10px"}}>(optional, max 5MB)</span></label>
+                    <div className={`addbook-upload${coverPreview ? " has-preview" : ""}`}>
+                      <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={handleFileChange} />
+                      {coverPreview ? (
+                        <>
+                          <img src={coverPreview} alt="Cover preview" className="addbook-preview" />
+                          <div className="addbook-preview-overlay"><span>{"\uD83D\uDDBC\uFE0F"} Change image</span></div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="addbook-upload-icon">{"\uD83D\uDDBC\uFE0F"}</div>
+                          <div className="addbook-upload-text">
+                            <strong>Click to upload</strong> or drag a cover image<br/>
+                            PNG, JPG, GIF, or WEBP
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="field-error">{errors.cover_image || ""}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer with submit and reset buttons */}
+              <div className="addbook-footer">
+                <button type="submit" className="btn-addbook" disabled={submitting}>
+                  {submitting ? <><span className="spin">{"\u27F3"}</span> Adding Book{"\u2026"}</> : <>{"\u2726"} Add Book to Catalog</>}
+                </button>
+                <button type="button" className="btn-addbook-reset" onClick={resetForm}>Reset</button>
+              </div>
+            </form>
           </div>
         </div>
       );
@@ -854,6 +1231,7 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
       }, [selGenres, query, loading, showToast, allBooks]);
 
       const centerTitle = useMemo(() => {
+        if (activeTab === "add_book") return <>Add <em>New Book</em></>;
         if (activeTab === "dashboard") return <>Library <em>Dashboard</em></>;
         if (activeTab === "returned") return <>Returned <em>Books</em></>;
         if (activeTab === "saved") return <><em>{savedBooks.length}</em> Saved Books</>;
@@ -952,6 +1330,7 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
                     <div className="ctr-heading">{centerTitle}</div>
                     <div className="ctr-sub">
                       {activeTab === "recs" && (meta || "Select genres, type a query, then let the Recommendation Agent search our catalog")}
+                      {activeTab === "add_book" && "Fill in the form below to add a new book to the library catalog"}
                       {activeTab === "saved" && "Books you've saved for later (session only)"}
                       {activeTab === "borrowed" && (currentUser.role === "staff" ? "View and manage all borrower activity" : "Books currently borrowed under your account")}
                       {activeTab === "returned" && "Archive of all returned books"}
@@ -983,8 +1362,8 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
                 {/* Row 2: Navigation tabs */}
                 <div className="ctr-tabs">
                   {currentUser.role === "staff"
-                    ? [["recs", "Recommendations"], ["pending_borrows", "Pending"], ["borrowed", "Borrowed"], ["returned", "Returned"], ["dashboard", "Dashboard"]].map(([k, l]) => (
-                      <button key={k} className={`tab${activeTab === k ? " on" : ""}`} onClick={() => { setActiveTab(k); if (k !== "dashboard") fetchStaffData(); }}>{l}</button>
+                    ? [["recs", "Recommendations"], ["add_book", "\u2795 Add Book"], ["pending_borrows", "Pending"], ["borrowed", "Borrowed"], ["returned", "Returned"], ["dashboard", "Dashboard"]].map(([k, l]) => (
+                      <button key={k} className={`tab${activeTab === k ? " on" : ""}`} onClick={() => { setActiveTab(k); if (k !== "dashboard" && k !== "add_book") fetchStaffData(); }}>{l}</button>
                     ))
                     : [["recs", "Recommendations"], ["saved", "Saved"], ["pending_borrows", "Pending"], ["borrowed", "Borrowed"]].map(([k, l]) => (
                       <button key={k} className={`tab${activeTab === k ? " on" : ""}`} onClick={() => { setActiveTab(k); fetchUserData(); }}>{l}</button>
@@ -1024,18 +1403,34 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
                     />
 
                     {loading ? <Skeleton /> : (() => {
-                      let disp = books;
+                      // KEY FIX: When user types in search bar, search the ENTIRE
+                      // catalog (allBooks), not just the AI recommendation subset.
+                      // This ensures newly added books are always discoverable.
                       if (tabSearch.trim()) {
                         const q = tabSearch.toLowerCase();
-                        disp = books.filter(b =>
+                        const disp = allBooks.filter(b =>
                           (b.title?.toLowerCase() || "").includes(q) ||
                           (b.author?.toLowerCase() || "").includes(q) ||
                           (b.genre?.toLowerCase() || "").includes(q) ||
                           (b.description?.toLowerCase() || "").includes(q) ||
                           (b.subtitle?.toLowerCase() || "").includes(q)
                         );
+                        if (disp.length === 0) {
+                          return (
+                            <div className="empty" style={{ padding: "40px" }}>
+                              <div className="empty-h">No matches found for "{tabSearch}"</div>
+                              <div className="empty-p">Try adjusting your search terms.</div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="book-grid">
+                            {disp.map(b => <BookCard key={b.id || b.book_id} book={b} onSave={toggleSave} onBorrow={handleBorrowRequest} isSaved={savedBooks.some(s => s.id === b.id)} isBorrowed={isBorrowed(b.id)} isPending={pendingBooks.some(p => p.id === b.id)} />)}
+                          </div>
+                        );
                       }
 
+                      // No search query — show AI recommendation results
                       if (books.length === 0) {
                         return (
                           <div className="empty">
@@ -1044,22 +1439,26 @@ a.bcard-title-link:hover,a.bcard-title-link:focus{color:var(--amber);text-decora
                             <div className="empty-p">Choose <strong>up to 3 genres</strong> from the left panel and describe what you're looking for. The Recommendation Agent will search our catalog and surface the best matches. Or ask AI Myra in the chat.</div>
                           </div>
                         );
-                      } else if (disp.length === 0) {
-                        return (
-                          <div className="empty" style={{ padding: "40px" }}>
-                            <div className="empty-h">No matches found for "{tabSearch}"</div>
-                            <div className="empty-p">Try adjusting your search terms.</div>
-                          </div>
-                        );
-                      } else {
-                        return (
-                          <div className="book-grid">
-                            {disp.map(b => <BookCard key={b.id} book={b} onSave={toggleSave} onBorrow={handleBorrowRequest} isSaved={savedBooks.some(s => s.id === b.id)} isBorrowed={isBorrowed(b.id)} isPending={pendingBooks.some(p => p.id === b.id)} />)}
-                          </div>
-                        );
                       }
+                      return (
+                        <div className="book-grid">
+                          {books.map(b => <BookCard key={b.id || b.book_id} book={b} onSave={toggleSave} onBorrow={handleBorrowRequest} isSaved={savedBooks.some(s => s.id === b.id)} isBorrowed={isBorrowed(b.id)} isPending={pendingBooks.some(p => p.id === b.id)} />)}
+                        </div>
+                      );
                     })()}
                   </div>
+                )}
+                {/* ===== Add Book Tab (Staff Only) ===== */}
+                {activeTab === "add_book" && currentUser.role === "staff" && (
+                  <AddBookForm
+                    genres={genres}
+                    showToast={showToast}
+                    onBookAdded={() => {
+                      // Refresh the books list after adding a new book
+                      fetch("/api/books").then(r => r.ok ? r.json() : []).then(setAllBooks).catch(() => {});
+                      fetch("/api/books/genres").then(r => r.ok ? r.json() : []).then(setGenres).catch(() => {});
+                    }}
+                  />
                 )}
                 {activeTab === "saved" && (
                   savedBooks.length === 0 ? (
